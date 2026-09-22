@@ -1,0 +1,75 @@
+services:
+  fastapi-backend:
+    container_name: fastapi-backend
+    command: uv run uvicorn fastapiprojecti.main:app --app-dir src --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: .
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - DB_USERNAME
+      - DB_PASSWORD
+      - DB_HOST
+      - DB_PORT
+      - DB_NAME
+      - KC_BASE_URL
+      - KC_REALM_ID
+      - KC_CLIENT_ID
+      - KC_CLIENT_SECRET
+      - KC_BOOTSTRAP_ADMIN_USERNAME
+      - KC_BOOTSTRAP_ADMIN_PASSWORD
+      - REDIRECT_URI
+      - LOGOUT_URL
+      - APP_BASE_URL
+    depends_on:
+      - postgres
+      - keycloak
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  keycloak:
+    container_name: fastapi-keycloak
+    image: keycloak/keycloak:26.4
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME
+      - KC_BOOTSTRAP_ADMIN_PASSWORD
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:5432/postgres
+      - KC_DB_USERNAME=${DB_USERNAME}
+      - KC_DB_PASSWORD=${DB_PASSWORD}
+      - KC_HEALTH_ENABLED=true
+    depends_on:
+      - postgres
+    command: start-dev
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+  postgres:
+    container_name: fastapi-postgres
+    image: postgres:17-alpine
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data:
